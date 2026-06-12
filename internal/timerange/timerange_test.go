@@ -1,0 +1,60 @@
+package timerange
+
+import (
+	"testing"
+	"time"
+)
+
+func mustParse(t *testing.T, s string) time.Time {
+	t.Helper()
+	tm, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t.Fatalf("parse %q: %v", s, err)
+	}
+	return tm
+}
+
+func TestResolve(t *testing.T) {
+	now := mustParse(t, "2026-06-11T12:00:00Z")
+
+	tests := []struct {
+		name     string
+		sel      Selector
+		wantFrom string
+		wantTo   string
+		wantErr  bool
+	}{
+		{name: "default 7 days", sel: Selector{}, wantFrom: "2026-06-04T12:00:00Z", wantTo: "2026-06-11T12:00:00Z"},
+		{name: "past 3 days", sel: Selector{Days: 3}, wantFrom: "2026-06-08T12:00:00Z", wantTo: "2026-06-11T12:00:00Z"},
+		{name: "month", sel: Selector{Month: "2026-05"}, wantFrom: "2026-05-01T00:00:00Z", wantTo: "2026-06-01T00:00:00Z"},
+		{name: "day", sel: Selector{Day: "2026-06-10"}, wantFrom: "2026-06-10T00:00:00Z", wantTo: "2026-06-11T00:00:00Z"},
+		{name: "explicit", sel: Selector{From: "2026-01-01", To: "2026-02-01"}, wantFrom: "2026-01-01T00:00:00Z", wantTo: "2026-02-01T00:00:00Z"},
+		{name: "conflict", sel: Selector{Days: 3, Month: "2026-05"}, wantErr: true},
+		{name: "bad month", sel: Selector{Month: "nope"}, wantErr: true},
+		{name: "to before from", sel: Selector{From: "2026-02-01", To: "2026-01-01"}, wantErr: true},
+	}
+
+	// Tests use UTC dates; force local zone to UTC for deterministic parsing.
+	time.Local = time.UTC
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.sel.Resolve(now)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("want error, got %+v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.From.UTC().Format(time.RFC3339) != tc.wantFrom {
+				t.Errorf("From = %s, want %s", got.From.UTC().Format(time.RFC3339), tc.wantFrom)
+			}
+			if got.To.UTC().Format(time.RFC3339) != tc.wantTo {
+				t.Errorf("To = %s, want %s", got.To.UTC().Format(time.RFC3339), tc.wantTo)
+			}
+		})
+	}
+}

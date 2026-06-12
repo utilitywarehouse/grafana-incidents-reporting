@@ -1,0 +1,4 @@
+github.com/grafana/incident-go v0.0.0-20260605080210-8d697f436225 h1:Jtyl8NpCzTCQ937BaUuNnitQPXWgDuTBAG2f5e+Vk/0=
+github.com/grafana/incident-go v0.0.0-20260605080210-8d697f436225/go.mod h1:3QDfdZOWKRxNhMJFL+0C/+12+jLNHDlt0VKNr/i9Daw=
+github.com/matryer/is v1.4.1 h1:55ehd8zaGABKLXQUe2awZ99BD/PTc2ls+KV/dXphgEQ=
+github.com/matryer/is v1.4.1/go.mod h1:8I/i5uYgLzgsgEloJE1U6xx5HkBQpAZvepWuujKwMRU=

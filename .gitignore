@@ -1,0 +1,3 @@
+# Build output
+/grafana-incidents-reporting
+*.csv
