@@ -34,7 +34,14 @@ func TestBuildAndWriteCSV(t *testing.T) {
 	// u1/u2 have emails; u3 does not and is rendered by name only.
 	emails := map[string]string{"u1": "alice@uw.co.uk", "u2": "bob@uw.co.uk"}
 
-	rep := Build(incidents, emails)
+	debriefs := map[string][]incident.KeyUpdate{
+		"inc-1": {
+			{CreatedTime: "2026-06-10T09:12:00Z", Content: "Found root cause"},
+			{CreatedTime: "2026-06-10T10:30:45Z", Content: "Fix deployed,\nmonitoring"},
+		},
+	}
+
+	rep := Build(incidents, emails, debriefs)
 	if len(rep.Rows) != 1 {
 		t.Fatalf("want 1 row, got %d", len(rep.Rows))
 	}
@@ -52,13 +59,17 @@ func TestBuildAndWriteCSV(t *testing.T) {
 	if r.Roles["investigator"] != "bob <bob@uw.co.uk>; carol" {
 		t.Errorf("investigator = %q", r.Roles["investigator"])
 	}
+	// Newlines in update text are collapsed; entries joined chronologically.
+	if r.Debrief != "2026-06-10 09:12Z: Found root cause; 2026-06-10 10:30Z: Fix deployed, monitoring" {
+		t.Errorf("Debrief = %q", r.Debrief)
+	}
 
 	var buf bytes.Buffer
 	if err := WriteCSV(&buf, rep); err != nil {
 		t.Fatalf("WriteCSV: %v", err)
 	}
 	out := buf.String()
-	if !strings.HasPrefix(out, "title,status,severity,declared,resolved,labels,commander,investigator,communicator,observer\n") {
+	if !strings.HasPrefix(out, "title,status,severity,declared,resolved,labels,commander,investigator,communicator,observer,debrief (key updates)\n") {
 		t.Errorf("missing/incorrect header: %q", out)
 	}
 	if !strings.Contains(out, "Checkout is down,resolved,critical,") {

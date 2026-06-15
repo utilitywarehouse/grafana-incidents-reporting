@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	incident "github.com/grafana/incident-go"
 )
@@ -21,6 +22,7 @@ type Row struct {
 	Resolved string // RFC3339, from ClosedTime (empty while open)
 	Labels   string // "key=label" pairs joined by "; "
 	Roles    map[string]string
+	Debrief  string // key updates as "timestamp: text" joined by "; "
 }
 
 // Report is the set of rows plus the role columns to emit. Roles become
@@ -42,8 +44,9 @@ var baseHeader = []string{
 var roleColumns = []string{"commander", "investigator", "communicator", "observer"}
 
 // Build flattens incidents into a Report. emails maps a user ID to an email
-// address; users missing from it are rendered by name only.
-func Build(incidents []incident.Incident, emails map[string]string) Report {
+// address (users missing from it are rendered by name only); debriefs maps an
+// incident ID to its key updates.
+func Build(incidents []incident.Incident, emails map[string]string, debriefs map[string][]incident.KeyUpdate) Report {
 	rows := make([]Row, 0, len(incidents))
 	for _, inc := range incidents {
 		rows = append(rows, Row{
@@ -54,9 +57,38 @@ func Build(incidents []incident.Incident, emails map[string]string) Report {
 			Resolved: inc.ClosedTime,
 			Labels:   formatLabels(inc.Labels),
 			Roles:    groupRoles(inc.IncidentMembership.Assignments, emails),
+			Debrief:  formatDebrief(debriefs[inc.IncidentID]),
 		})
 	}
 	return Report{RoleColumns: roleColumns, Rows: rows}
+}
+
+// formatDebrief renders key updates as "timestamp: text" entries joined by
+// "; ", in the order given (chronological). Empty updates are skipped.
+func formatDebrief(updates []incident.KeyUpdate) string {
+	parts := make([]string, 0, len(updates))
+	for _, u := range updates {
+		text := u.Content
+		if text == "" && u.Title != nil {
+			text = *u.Title
+		}
+		text = strings.TrimSpace(strings.ReplaceAll(text, "\n", " "))
+		if text == "" {
+			continue
+		}
+		parts = append(parts, shortTime(u.CreatedTime)+": "+text)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// shortTime trims an RFC3339 timestamp to minute precision in UTC, falling back
+// to the raw value if it can't be parsed.
+func shortTime(rfc3339 string) string {
+	t, err := time.Parse(time.RFC3339, rfc3339)
+	if err != nil {
+		return rfc3339
+	}
+	return t.UTC().Format("2006-01-02 15:04Z")
 }
 
 // groupRoles maps each role name to its "; "-joined formatted users.
@@ -102,6 +134,7 @@ func WriteCSV(w io.Writer, r Report) error {
 	cw := csv.NewWriter(w)
 
 	header := append(append([]string{}, baseHeader...), r.RoleColumns...)
+	header = append(header, "debrief (key updates)")
 	if err := cw.Write(header); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
@@ -110,6 +143,7 @@ func WriteCSV(w io.Writer, r Report) error {
 		for _, role := range r.RoleColumns {
 			rec = append(rec, row.Roles[role])
 		}
+		rec = append(rec, row.Debrief)
 		if err := cw.Write(rec); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
