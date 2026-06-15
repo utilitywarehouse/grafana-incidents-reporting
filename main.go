@@ -68,7 +68,12 @@ func run() error {
 		fmt.Fprintln(os.Stderr, "warning:", err)
 	}
 
-	rep := report.Build(incidents, emails)
+	debriefs, err := client.ResolveDebriefs(ctx, incidents)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "warning:", err)
+	}
+
+	rep := report.Build(incidents, emails, debriefs)
 
 	out := os.Stdout
 	if *output != "" {

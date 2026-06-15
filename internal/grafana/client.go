@@ -16,8 +16,9 @@ const pageSize = 50
 
 // Client wraps the incident-go services used to build reports.
 type Client struct {
-	incidents *incident.IncidentsService
-	users     *incident.UsersService
+	incidents  *incident.IncidentsService
+	users      *incident.UsersService
+	keyUpdates *incident.KeyUpdatesService
 }
 
 // New builds a Client. apiURL should be the full resources API base, e.g.
@@ -32,8 +33,9 @@ func New(apiURL, serviceAccountToken string) *Client {
 	}
 	c := incident.NewClient(apiURL, serviceAccountToken)
 	return &Client{
-		incidents: incident.NewIncidentsService(c),
-		users:     incident.NewUsersService(c),
+		incidents:  incident.NewIncidentsService(c),
+		users:      incident.NewUsersService(c),
+		keyUpdates: incident.NewKeyUpdatesService(c),
 	}
 }
 
@@ -114,4 +116,57 @@ func (c *Client) ResolveAssigneeEmails(ctx context.Context, incidents []incident
 		return emails, fmt.Errorf("could not resolve %d user(s); presenting names without email", failed)
 	}
 	return emails, nil
+}
+
+// keyUpdatesFor returns all key updates ("status updates") posted to an
+// incident, in chronological order, with plain-text content.
+func (c *Client) keyUpdatesFor(ctx context.Context, incidentID string) ([]incident.KeyUpdate, error) {
+	query := incident.KeyUpdatesQuery{
+		IncidentID:     incidentID,
+		Limit:          pageSize,
+		OrderDirection: incident.Options.KeyUpdatesQueryOrderDirection.ASC,
+		OrderField:     incident.Options.KeyUpdatesQueryOrderField.CreatedTime,
+		ContentType:    incident.Options.KeyUpdatesQueryContentType.TextPlain,
+	}
+
+	var (
+		out    []incident.KeyUpdate
+		cursor incident.Cursor
+	)
+	for {
+		resp, err := c.keyUpdates.QueryKeyUpdates(ctx, incident.QueryKeyUpdatesRequest{
+			Query:  query,
+			Cursor: cursor,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query key updates for %s: %w", incidentID, err)
+		}
+		out = append(out, resp.KeyUpdates...)
+		if !resp.Cursor.HasMore {
+			break
+		}
+		cursor = resp.Cursor
+	}
+	return out, nil
+}
+
+// ResolveDebriefs fetches the key updates for every incident, keyed by incident
+// ID. Best-effort: incidents whose updates can't be fetched are omitted (callers
+// render an empty debrief). If any fail, a non-nil error summarizing the count
+// is returned alongside the partial map.
+func (c *Client) ResolveDebriefs(ctx context.Context, incidents []incident.Incident) (map[string][]incident.KeyUpdate, error) {
+	out := make(map[string][]incident.KeyUpdate, len(incidents))
+	var failed int
+	for _, inc := range incidents {
+		updates, err := c.keyUpdatesFor(ctx, inc.IncidentID)
+		if err != nil {
+			failed++
+			continue
+		}
+		out[inc.IncidentID] = updates
+	}
+	if failed > 0 {
+		return out, fmt.Errorf("could not fetch key updates for %d incident(s)", failed)
+	}
+	return out, nil
 }

@@ -3,7 +3,8 @@
 A small Go CLI that pulls incidents from the [Grafana Incidents API][api] (via
 [`grafana/incident-go`][sdk]) for a chosen time window and writes a CSV report.
 
-Each row has these fixed columns, followed by **one column per role type**:
+Each row has these fixed columns, then **one column per role type**, then
+`debrief`:
 
 | Column | Source |
 | --- | --- |
@@ -17,6 +18,7 @@ Each row has these fixed columns, followed by **one column per role type**:
 | `investigator` | users holding the investigator role |
 | `communicator` | users holding the communicator role |
 | `observer` | chat participants |
+| `debrief (key updates)` | the incident's key updates, chronologically |
 
 The four role columns are always present (empty when no one holds the role).
 `commander`, `investigator`, and `communicator` are Grafana's predefined incident
@@ -24,6 +26,10 @@ roles; `observer` is what the IRM page shows as chat participants. Any other rol
 type in the data is dropped. Each user is rendered as `name <email>`, with
 multiple users in a role separated by `; `. Emails are resolved from each user's
 record; if a user can't be resolved, just the name is shown.
+
+`debrief` is built from the incident's key updates (the status updates posted
+during the incident), rendered as `YYYY-MM-DD HH:MMZ: text` entries joined by
+`; ` in chronological order.
 
 ## Configuration
 
