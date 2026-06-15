@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -22,35 +23,49 @@ func TestBuildAndWriteCSV(t *testing.T) {
 		},
 		IncidentMembership: incident.IncidentMembership{
 			Assignments: []incident.Assignment{
-				{User: incident.UserPreview{Name: "Alice"}, Role: incident.Role{Name: "Commander"}},
-				{User: incident.UserPreview{Name: "Bob"}, Role: incident.Role{Name: "Investigator"}},
-				{User: incident.UserPreview{Name: "Carol"}, Role: incident.Role{Name: "Investigator"}},
+				{User: incident.UserPreview{UserID: "u1", Name: "alice"}, Role: incident.Role{Name: "commander"}},
+				{User: incident.UserPreview{UserID: "u2", Name: "bob"}, Role: incident.Role{Name: "investigator"}},
+				{User: incident.UserPreview{UserID: "u3", Name: "carol"}, Role: incident.Role{Name: "investigator"}},
+				{User: incident.UserPreview{UserID: "u4", Name: "dave"}, Role: incident.Role{Name: "scribe"}},
 			},
 		},
 	}}
 
-	rows := Build(incidents)
-	if len(rows) != 1 {
-		t.Fatalf("want 1 row, got %d", len(rows))
+	// u1/u2 have emails; u3 does not and is rendered by name only.
+	emails := map[string]string{"u1": "alice@uw.co.uk", "u2": "bob@uw.co.uk"}
+
+	rep := Build(incidents, emails)
+	if len(rep.Rows) != 1 {
+		t.Fatalf("want 1 row, got %d", len(rep.Rows))
+	}
+	if got, want := rep.RoleColumns, []string{"commander", "investigator", "communicator", "observer"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("RoleColumns = %v, want %v", got, want)
 	}
 
-	r := rows[0]
+	r := rep.Rows[0]
 	if r.Labels != "service=checkout; team=payments" {
 		t.Errorf("Labels = %q", r.Labels)
 	}
-	if r.Roles != "Commander: Alice; Investigator: Bob, Carol" {
-		t.Errorf("Roles = %q", r.Roles)
+	if r.Roles["commander"] != "alice <alice@uw.co.uk>" {
+		t.Errorf("commander = %q", r.Roles["commander"])
+	}
+	if r.Roles["investigator"] != "bob <bob@uw.co.uk>; carol" {
+		t.Errorf("investigator = %q", r.Roles["investigator"])
 	}
 
 	var buf bytes.Buffer
-	if err := WriteCSV(&buf, rows); err != nil {
+	if err := WriteCSV(&buf, rep); err != nil {
 		t.Fatalf("WriteCSV: %v", err)
 	}
 	out := buf.String()
-	if !strings.HasPrefix(out, "title,status,severity,declared,resolved,labels,roles\n") {
+	if !strings.HasPrefix(out, "title,status,severity,declared,resolved,labels,commander,investigator,communicator,observer\n") {
 		t.Errorf("missing/incorrect header: %q", out)
 	}
 	if !strings.Contains(out, "Checkout is down,resolved,critical,") {
 		t.Errorf("row not rendered: %q", out)
+	}
+	// "scribe" is not a known role column, so it must not appear in the output.
+	if strings.Contains(out, "scribe") || strings.Contains(out, "dave") {
+		t.Errorf("unexpected role leaked into output: %q", out)
 	}
 }

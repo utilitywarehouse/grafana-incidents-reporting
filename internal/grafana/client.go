@@ -17,6 +17,7 @@ const pageSize = 50
 // Client wraps the incident-go services used to build reports.
 type Client struct {
 	incidents *incident.IncidentsService
+	users     *incident.UsersService
 }
 
 // New builds a Client. apiURL should be the full resources API base, e.g.
@@ -32,13 +33,14 @@ func New(apiURL, serviceAccountToken string) *Client {
 	c := incident.NewClient(apiURL, serviceAccountToken)
 	return &Client{
 		incidents: incident.NewIncidentsService(c),
+		users:     incident.NewUsersService(c),
 	}
 }
 
 // QueryParams narrows which incidents are returned.
 type QueryParams struct {
-	Range          timerange.Range
-	IncludeDrills  bool // when false, drills are excluded
+	Range           timerange.Range
+	IncludeDrills   bool // when false, drills are excluded
 	IncludeStatuses []string
 }
 
@@ -78,4 +80,38 @@ func (c *Client) ListIncidents(ctx context.Context, p QueryParams) ([]incident.I
 		cursor = resp.Cursor
 	}
 	return out, nil
+}
+
+// ResolveAssigneeEmails looks up the email for every unique user assigned a role
+// across the given incidents, returning a map keyed by user ID.
+//
+// Resolution is best-effort: users that can't be fetched (e.g. deleted) or have
+// no email are simply omitted, so callers render them by name only. Each unique
+// user is fetched once. If any lookups fail, a non-nil error summarizing the
+// count is returned alongside the partial map.
+func (c *Client) ResolveAssigneeEmails(ctx context.Context, incidents []incident.Incident) (map[string]string, error) {
+	emails := map[string]string{}
+	seen := map[string]bool{}
+	var failed int
+	for _, inc := range incidents {
+		for _, a := range inc.IncidentMembership.Assignments {
+			id := a.User.UserID
+			if id == "" || seen[id] {
+				continue
+			}
+			seen[id] = true
+			resp, err := c.users.GetUser(ctx, incident.GetUserRequest{UserID: id})
+			if err != nil {
+				failed++
+				continue
+			}
+			if resp.User.Email != "" {
+				emails[id] = resp.User.Email
+			}
+		}
+	}
+	if failed > 0 {
+		return emails, fmt.Errorf("could not resolve %d user(s); presenting names without email", failed)
+	}
+	return emails, nil
 }

@@ -63,7 +63,12 @@ func run() error {
 		return err
 	}
 
-	rows := report.Build(incidents)
+	emails, err := client.ResolveAssigneeEmails(ctx, incidents)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "warning:", err)
+	}
+
+	rep := report.Build(incidents, emails)
 
 	out := os.Stdout
 	if *output != "" {
@@ -74,12 +79,12 @@ func run() error {
 		defer f.Close()
 		out = f
 	}
-	if err := report.WriteCSV(out, rows); err != nil {
+	if err := report.WriteCSV(out, rep); err != nil {
 		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "wrote %d incident(s) for %s .. %s\n",
-		len(rows), window.From.Format(time.RFC3339), window.To.Format(time.RFC3339))
+		len(rep.Rows), window.From.Format(time.RFC3339), window.To.Format(time.RFC3339))
 	return nil
 }
 
