@@ -26,7 +26,7 @@ func run() error {
 	var (
 		apiURL   = flag.String("api-url", os.Getenv("GRAFANA_INCIDENT_API_URL"), "Grafana Incidents API base URL (env GRAFANA_INCIDENT_API_URL)")
 		days     = flag.Int("days", 0, "report on incidents declared in the past N days")
-		month    = flag.String("month", "", "report on a calendar month (YYYY-MM)")
+		month    = flag.String("month", "", `report on a calendar month: YYYY-MM, "current", or "previous"`)
 		day      = flag.String("day", "", "report on a single day (YYYY-MM-DD)")
 		from     = flag.String("from", "", "explicit window start (RFC3339 or YYYY-MM-DD)")
 		to       = flag.String("to", "", "explicit window end (RFC3339 or YYYY-MM-DD)")
@@ -116,7 +116,7 @@ Usage:
 
 Time window (pick one; defaults to the past 7 days):
   --days N            past N days
-  --month YYYY-MM     a calendar month
+  --month YYYY-MM     a calendar month (or "current" / "previous")
   --day YYYY-MM-DD    a single day
   --from / --to       explicit range (RFC3339 or YYYY-MM-DD)
 
