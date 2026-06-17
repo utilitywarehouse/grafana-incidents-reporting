@@ -49,8 +49,10 @@ Pick exactly one way to specify the window (defaults to the past 7 days):
 # Past N days
 grafana-incidents-reporting --days 14
 
-# A whole calendar month
+# A whole calendar month (explicit, or the current / previous one)
 grafana-incidents-reporting --month 2026-05
+grafana-incidents-reporting --month current
+grafana-incidents-reporting --month previous
 
 # A single day
 grafana-incidents-reporting --day 2026-06-10

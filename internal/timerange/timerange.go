@@ -4,6 +4,7 @@ package timerange
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -17,7 +18,8 @@ type Range struct {
 // "shape" is expected to be set; Resolve enforces that and reports conflicts.
 //
 //	Days  > 0          -> the past N days, ending now
-//	Month "2006-01"    -> a whole calendar month
+//	Month "2006-01"    -> a whole calendar month; also "current"/"this" or
+//	                      "previous"/"last" for the month relative to now
 //	Day   "2006-01-02" -> a single calendar day
 //	From/To            -> an explicit range (RFC3339 or YYYY-MM-DD)
 type Selector struct {
@@ -36,9 +38,9 @@ func (s Selector) Resolve(now time.Time) (Range, error) {
 		return Range{}, fmt.Errorf("choose only one of --days, --month, --day, or --from/--to")
 
 	case s.Month != "":
-		start, err := time.ParseInLocation("2006-01", s.Month, time.Local)
+		start, err := parseMonth(s.Month, now)
 		if err != nil {
-			return Range{}, fmt.Errorf("parse --month %q (want YYYY-MM): %w", s.Month, err)
+			return Range{}, err
 		}
 		return Range{From: start, To: start.AddDate(0, 1, 0)}, nil
 
@@ -77,6 +79,26 @@ func (s Selector) Resolve(now time.Time) (Range, error) {
 		}
 		return Range{From: now.AddDate(0, 0, -days), To: now}, nil
 	}
+}
+
+// parseMonth resolves a --month value to the first instant of that calendar
+// month in the local zone. It accepts an explicit "YYYY-MM" or the relative
+// keywords "current"/"this" and "previous"/"last" (relative to now).
+func parseMonth(s string, now time.Time) (time.Time, error) {
+	firstOfMonth := func(t time.Time) time.Time {
+		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.Local)
+	}
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "current", "this":
+		return firstOfMonth(now), nil
+	case "previous", "last":
+		return firstOfMonth(now).AddDate(0, -1, 0), nil
+	}
+	start, err := time.ParseInLocation("2006-01", s, time.Local)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse --month %q (want YYYY-MM, \"current\", or \"previous\"): %w", s, err)
+	}
+	return start, nil
 }
 
 // set counts how many of the given conditions are true.
