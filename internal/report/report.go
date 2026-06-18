@@ -2,6 +2,7 @@
 package report
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -128,26 +129,77 @@ func formatLabels(labels []incident.IncidentLabel) string {
 	return strings.Join(parts, "; ")
 }
 
+// header is the full column list: the fixed columns, one column per role type,
+// then debrief.
+func (r Report) header() []string {
+	h := append(append([]string{}, baseHeader...), r.RoleColumns...)
+	return append(h, "debrief (key updates)")
+}
+
+// record flattens one row into a slice aligned with header().
+func (r Report) record(row Row) []string {
+	rec := []string{row.Title, row.Status, row.Severity, row.Declared, row.Resolved, row.Labels}
+	for _, role := range r.RoleColumns {
+		rec = append(rec, row.Roles[role])
+	}
+	return append(rec, row.Debrief)
+}
+
 // WriteCSV writes the report as CSV: the fixed columns followed by one column
-// per role type.
+// per role type, then debrief.
 func WriteCSV(w io.Writer, r Report) error {
 	cw := csv.NewWriter(w)
-
-	header := append(append([]string{}, baseHeader...), r.RoleColumns...)
-	header = append(header, "debrief (key updates)")
-	if err := cw.Write(header); err != nil {
+	if err := cw.Write(r.header()); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
 	for _, row := range r.Rows {
-		rec := []string{row.Title, row.Status, row.Severity, row.Declared, row.Resolved, row.Labels}
-		for _, role := range r.RoleColumns {
-			rec = append(rec, row.Roles[role])
-		}
-		rec = append(rec, row.Debrief)
-		if err := cw.Write(rec); err != nil {
+		if err := cw.Write(r.record(row)); err != nil {
 			return fmt.Errorf("write row: %w", err)
 		}
 	}
 	cw.Flush()
 	return cw.Error()
+}
+
+// WriteMarkdown writes the report as a GitHub-flavored Markdown table with the
+// same columns as the CSV form.
+func WriteMarkdown(w io.Writer, r Report) error {
+	bw := bufio.NewWriter(w)
+	header := r.header()
+	writeMarkdownRow(bw, header)
+	writeMarkdownRow(bw, make([]string, len(header))) // empty cells -> all "---"
+	for _, row := range r.Rows {
+		writeMarkdownRow(bw, r.record(row))
+	}
+	return bw.Flush()
+}
+
+// writeMarkdownRow writes one table row. A row of empty cells renders as the
+// header/body separator (each cell becomes "---").
+func writeMarkdownRow(w *bufio.Writer, cells []string) {
+	allEmpty := true
+	for _, c := range cells {
+		if c != "" {
+			allEmpty = false
+			break
+		}
+	}
+	w.WriteString("|")
+	for _, c := range cells {
+		if allEmpty {
+			w.WriteString(" --- |")
+		} else {
+			w.WriteString(" " + escapeMarkdownCell(c) + " |")
+		}
+	}
+	w.WriteString("\n")
+}
+
+// escapeMarkdownCell makes a value safe inside a Markdown table cell: pipes are
+// escaped and newlines become <br> so a cell never breaks the table.
+func escapeMarkdownCell(s string) string {
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\n", "<br>")
+	return s
 }
