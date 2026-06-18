@@ -14,6 +14,33 @@ func mustParse(t *testing.T, s string) time.Time {
 	return tm
 }
 
+func TestRangeSlug(t *testing.T) {
+	time.Local = time.UTC
+	tests := []struct {
+		name string
+		sel  Selector
+		want string
+	}{
+		{name: "month", sel: Selector{Month: "2026-05"}, want: "2026-05"},
+		{name: "current month", sel: Selector{Month: "current"}, want: "2026-06"},
+		{name: "day", sel: Selector{Day: "2026-06-10"}, want: "2026-06-10"},
+		{name: "explicit range", sel: Selector{From: "2026-06-01", To: "2026-06-08"}, want: "2026-06-01_2026-06-08"},
+		{name: "past days", sel: Selector{Days: 7}, want: "2026-06-04_2026-06-11"},
+	}
+	now := mustParse(t, "2026-06-11T12:00:00Z")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := tc.sel.Resolve(now)
+			if err != nil {
+				t.Fatalf("resolve: %v", err)
+			}
+			if got := r.Slug(); got != tc.want {
+				t.Errorf("Slug() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestResolve(t *testing.T) {
 	now := mustParse(t, "2026-06-11T12:00:00Z")
 

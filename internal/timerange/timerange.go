@@ -14,6 +14,31 @@ type Range struct {
 	To   time.Time
 }
 
+// Slug returns a deterministic, filename-safe label for the window, derived
+// purely from the concrete range so the same window always yields the same
+// name regardless of how it was requested:
+//
+//	a whole calendar month  -> "2006-01"
+//	a single calendar day   -> "2006-01-02"
+//	anything else           -> "2006-01-02_2006-01-02" (From and To dates)
+func (r Range) Slug() string {
+	if isMidnight(r.From) {
+		if r.From.Day() == 1 && r.To.Equal(r.From.AddDate(0, 1, 0)) {
+			return r.From.Format("2006-01")
+		}
+		if r.To.Equal(r.From.AddDate(0, 0, 1)) {
+			return r.From.Format("2006-01-02")
+		}
+	}
+	return r.From.Format("2006-01-02") + "_" + r.To.Format("2006-01-02")
+}
+
+// isMidnight reports whether t falls exactly on a midnight boundary.
+func isMidnight(t time.Time) bool {
+	h, m, s := t.Clock()
+	return h == 0 && m == 0 && s == 0 && t.Nanosecond() == 0
+}
+
 // Selector holds the mutually-flexible ways of asking for a window. Exactly one
 // "shape" is expected to be set; Resolve enforces that and reports conflicts.
 //

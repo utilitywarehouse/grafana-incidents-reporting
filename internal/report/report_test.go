@@ -80,3 +80,37 @@ func TestBuildAndWriteCSV(t *testing.T) {
 		t.Errorf("unexpected role leaked into output: %q", out)
 	}
 }
+
+func TestWriteMarkdown(t *testing.T) {
+	rep := Report{
+		RoleColumns: []string{"commander"},
+		Rows: []Row{{
+			Title:   "Pipe | break",
+			Status:  "resolved",
+			Roles:   map[string]string{"commander": "alice"},
+			Debrief: "line one\nline two",
+		}},
+	}
+
+	var buf bytes.Buffer
+	if err := WriteMarkdown(&buf, rep); err != nil {
+		t.Fatalf("WriteMarkdown: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want header, separator, 1 row; got %d lines: %q", len(lines), buf.String())
+	}
+	if lines[0] != "| title | status | severity | declared | resolved | labels | commander | debrief (key updates) |" {
+		t.Errorf("header = %q", lines[0])
+	}
+	if lines[1] != "| --- | --- | --- | --- | --- | --- | --- | --- |" {
+		t.Errorf("separator = %q", lines[1])
+	}
+	// Pipes are escaped and newlines become <br> so the table stays intact.
+	if !strings.Contains(lines[2], `Pipe \| break`) {
+		t.Errorf("pipe not escaped: %q", lines[2])
+	}
+	if !strings.Contains(lines[2], "line one<br>line two") {
+		t.Errorf("newline not converted: %q", lines[2])
+	}
+}
