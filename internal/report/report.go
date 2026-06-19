@@ -161,45 +161,34 @@ func WriteCSV(w io.Writer, r Report) error {
 	return cw.Error()
 }
 
-// WriteMarkdown writes the report as a GitHub-flavored Markdown table with the
-// same columns as the CSV form.
+// WriteMarkdown writes the report as a per-incident Markdown list rather than a
+// table: one block per incident, each column rendered as a bold-labelled field,
+// with blocks separated by a horizontal rule. Wide tables render poorly on
+// narrow viewers; a list keeps every field on its own line.
 func WriteMarkdown(w io.Writer, r Report) error {
 	bw := bufio.NewWriter(w)
 	header := r.header()
-	writeMarkdownRow(bw, header)
-	writeMarkdownRow(bw, make([]string, len(header))) // empty cells -> all "---"
-	for _, row := range r.Rows {
-		writeMarkdownRow(bw, r.record(row))
+	for i, row := range r.Rows {
+		if i > 0 {
+			bw.WriteString("\n---\n\n") // rule between incidents
+		}
+		rec := r.record(row)
+		for j, col := range header {
+			// Two trailing spaces force a hard line break so adjacent fields
+			// don't collapse onto one rendered line.
+			bw.WriteString("**" + col + ":**")
+			if v := inlineValue(rec[j]); v != "" {
+				bw.WriteString(" " + v)
+			}
+			bw.WriteString("  \n")
+		}
 	}
 	return bw.Flush()
 }
 
-// writeMarkdownRow writes one table row. A row of empty cells renders as the
-// header/body separator (each cell becomes "---").
-func writeMarkdownRow(w *bufio.Writer, cells []string) {
-	allEmpty := true
-	for _, c := range cells {
-		if c != "" {
-			allEmpty = false
-			break
-		}
-	}
-	w.WriteString("|")
-	for _, c := range cells {
-		if allEmpty {
-			w.WriteString(" --- |")
-		} else {
-			w.WriteString(" " + escapeMarkdownCell(c) + " |")
-		}
-	}
-	w.WriteString("\n")
-}
-
-// escapeMarkdownCell makes a value safe inside a Markdown table cell: pipes are
-// escaped and newlines become <br> so a cell never breaks the table.
-func escapeMarkdownCell(s string) string {
-	s = strings.ReplaceAll(s, "|", "\\|")
+// inlineValue collapses newlines to spaces so a multi-line value stays on its
+// own field line.
+func inlineValue(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\n", "<br>")
-	return s
+	return strings.ReplaceAll(s, "\n", " ")
 }

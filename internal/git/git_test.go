@@ -62,7 +62,7 @@ func TestPushCreatesUpdatesAndSkips(t *testing.T) {
 	url := seedBareRepo(t)
 	ctx := context.Background()
 	opts := Options{RepoURL: url, Branch: "main"}
-	const relPath = "reports/incidents-2026-05.md"
+	const relPath = "reports/grafana-irm-incidents-2026-05.md"
 
 	// Create.
 	sha, committed, err := Push(ctx, opts, relPath, []byte("first\n"), "add report")
@@ -88,13 +88,18 @@ func TestPushCreatesUpdatesAndSkips(t *testing.T) {
 		t.Errorf("content after update = %q, want %q", got, "second")
 	}
 
-	// Identical content is a no-op.
+	// Identical content is a no-op: no commit, and the remote tip must not move.
+	bare := strings.TrimPrefix(url, "file://")
+	headBefore := gitT(t, bare, "rev-parse", "main")
 	_, committed, err = Push(ctx, opts, relPath, []byte("second\n"), "noop")
 	if err != nil {
 		t.Fatalf("noop push: %v", err)
 	}
 	if committed {
 		t.Error("want committed=false for identical content")
+	}
+	if headAfter := gitT(t, bare, "rev-parse", "main"); headAfter != headBefore {
+		t.Errorf("remote tip moved on no-op: %s -> %s", headBefore, headAfter)
 	}
 }
 

@@ -149,12 +149,13 @@ func formatExt(format string) (string, error) {
 	}
 }
 
-// pushToGit commits content to "<dir>/incidents-<window>.<ext>" in the target
-// repo, creating or overwriting the file in a single commit.
+// pushToGit commits content to "<dir>/grafana-irm-incidents-<window>.<ext>" in
+// the target repo, creating or overwriting the file in a single commit.
 func pushToGit(ctx context.Context, opts git.Options, dir string, window timerange.Range, ext string, content []byte) error {
-	name := fmt.Sprintf("incidents-%s.%s", window.Slug(), ext)
+	name := fmt.Sprintf("grafana-irm-incidents-%s.%s", window.Slug(), ext)
 	repoPath := path.Join(dir, name)
-	sha, committed, err := git.Push(ctx, opts, repoPath, content, "Incidents report "+name)
+	message := fmt.Sprintf("Generated incidents report for %s", window.Slug())
+	sha, committed, err := git.Push(ctx, opts, repoPath, content, message)
 	if err != nil {
 		return err
 	}
@@ -197,7 +198,7 @@ Output:
   --format csv|md     output format (default csv)
   --output PATH       write a local copy to PATH
 
-Push to a git repo over SSH (commits incidents-<window>.<ext>, overwriting it):
+Push to a git repo over SSH (commits grafana-irm-incidents-<window>.<ext>):
   --git-repo owner/repo   target repository (owner/repo or an SSH URL)
   --git-path DIR          directory under the repo (default: root)
   --git-branch BRANCH     branch (default: the repo's default)
