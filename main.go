@@ -50,7 +50,11 @@ func run() error {
 	flag.Usage = usage
 	flag.Parse()
 
-	token := os.Getenv("SERVICE_ACCOUNT_TOKEN")
+	// Trim surrounding whitespace: tokens and URLs sourced from secret/config
+	// files often carry a trailing newline, which is an invalid HTTP header
+	// value and breaks the Authorization header.
+	*apiURL = strings.TrimSpace(*apiURL)
+	token := strings.TrimSpace(os.Getenv("SERVICE_ACCOUNT_TOKEN"))
 	if *apiURL == "" {
 		return fmt.Errorf("missing API URL: set --api-url or GRAFANA_INCIDENT_API_URL")
 	}
