@@ -71,10 +71,30 @@ Other flags:
 
 ## Output format
 
-`--format csv` (default) writes the CSV described above. `--format md` writes
-the same columns as a GitHub-flavored Markdown table — handy when the report
-lands in a repo and is rendered on GitHub. Pipes and newlines inside cells are
-escaped (`\|` and `<br>`) so the table never breaks.
+`--format csv` (default) writes the CSV described above. `--format md` writes a
+per-incident Markdown **list** rather than a table: one block per incident with
+each column as a `**label:** value` line, blocks separated by a horizontal rule
+(`---`). Wide tables render poorly on narrow viewers (e.g. Slab); a list keeps
+every field on its own line and reads cleanly. For example:
+
+```markdown
+**title:** Checkout is down
+**status:** resolved
+**severity:** critical
+**declared:** 2026-06-10T09:00:00Z
+**resolved:** 2026-06-10T10:30:00Z
+**labels:** service=checkout; team=payments
+**commander:** alice <alice@uw.co.uk>
+**investigator:** bob <bob@uw.co.uk>; carol
+**communicator:**
+**observer:**
+**debrief (key updates):** 2026-06-10 09:12Z: Found root cause
+
+---
+
+**title:** API latency spike
+...
+```
 
 ## Pushing to a git repo
 
@@ -85,9 +105,9 @@ copies:
 
 | Window | Filename |
 | --- | --- |
-| `--month 2026-05` / `--month current` | `incidents-2026-05.md` |
-| `--day 2026-06-10` | `incidents-2026-06-10.md` |
-| `--from … --to …` / `--days N` | `incidents-2026-06-01_2026-06-08.md` |
+| `--month 2026-05` / `--month current` | `grafana-irm-incidents-2026-05.md` |
+| `--day 2026-06-10` | `grafana-irm-incidents-2026-06-10.md` |
+| `--from … --to …` / `--days N` | `grafana-irm-incidents-2026-06-01_2026-06-08.md` |
 
 ```sh
 export GITHUB_DEPLOY_KEY=/etc/incidents/ssh-key   # read/write deploy key
@@ -95,7 +115,7 @@ grafana-incidents-reporting --month previous --format md \
   --git-repo my-org/incident-reports --git-path reports
 ```
 
-This creates or overwrites `reports/incidents-2026-05.md` on the repo's default
+This creates or overwrites `reports/grafana-irm-incidents-2026-05.md` on the repo's default
 branch in one commit. To keep each run cheap, the clone is shallow (one commit),
 partial (blobs fetched on demand), and sparse (only `--git-path` is checked
 out). If the file already holds identical content, nothing is committed. Flags:

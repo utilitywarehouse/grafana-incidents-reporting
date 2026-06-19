@@ -83,34 +83,41 @@ func TestBuildAndWriteCSV(t *testing.T) {
 
 func TestWriteMarkdown(t *testing.T) {
 	rep := Report{
-		RoleColumns: []string{"commander"},
-		Rows: []Row{{
-			Title:   "Pipe | break",
-			Status:  "resolved",
-			Roles:   map[string]string{"commander": "alice"},
-			Debrief: "line one\nline two",
-		}},
+		RoleColumns: []string{"commander", "communicator"},
+		Rows: []Row{
+			{
+				Title:   "Checkout is down",
+				Status:  "resolved",
+				Roles:   map[string]string{"commander": "alice"},
+				Debrief: "line one\nline two",
+			},
+			{
+				Title:  "API latency spike",
+				Status: "active",
+			},
+		},
 	}
 
 	var buf bytes.Buffer
 	if err := WriteMarkdown(&buf, rep); err != nil {
 		t.Fatalf("WriteMarkdown: %v", err)
 	}
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	if len(lines) != 3 {
-		t.Fatalf("want header, separator, 1 row; got %d lines: %q", len(lines), buf.String())
+	out := buf.String()
+
+	// Fields are bold-labelled lines, not table rows.
+	if !strings.Contains(out, "**title:** Checkout is down  \n") {
+		t.Errorf("title field missing/incorrect: %q", out)
 	}
-	if lines[0] != "| title | status | severity | declared | resolved | labels | commander | debrief (key updates) |" {
-		t.Errorf("header = %q", lines[0])
+	// Empty field keeps the label with no trailing value.
+	if !strings.Contains(out, "**communicator:**  \n") {
+		t.Errorf("empty field not rendered as bare label: %q", out)
 	}
-	if lines[1] != "| --- | --- | --- | --- | --- | --- | --- | --- |" {
-		t.Errorf("separator = %q", lines[1])
+	// Newlines within a value collapse so the field stays on one line.
+	if !strings.Contains(out, "**debrief (key updates):** line one line two  \n") {
+		t.Errorf("multiline value not collapsed: %q", out)
 	}
-	// Pipes are escaped and newlines become <br> so the table stays intact.
-	if !strings.Contains(lines[2], `Pipe \| break`) {
-		t.Errorf("pipe not escaped: %q", lines[2])
-	}
-	if !strings.Contains(lines[2], "line one<br>line two") {
-		t.Errorf("newline not converted: %q", lines[2])
+	// A single horizontal rule separates the two incidents.
+	if n := strings.Count(out, "\n---\n"); n != 1 {
+		t.Errorf("want 1 separator rule, got %d: %q", n, out)
 	}
 }
